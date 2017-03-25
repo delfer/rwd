@@ -15,9 +15,8 @@ var ec2 = new AWS.EC2();
 
 var whenReady = function () {
     var regionsReq = getRegions();
-    //regionsReq.then((regions) => getCheapest(regions)).then(a => {console.log(a)});
-    //regionsReq.then((regions) => getUbuntuAMIs(regions));
-    getUbuntuAMIs('1');
+    regionsReq.then((regions) => getCheapest(regions)).then(a => {console.log(a)});
+    regionsReq.then((regions) => getUbuntuAMIs(regions)).then(a => {console.log(a)});;
 };
 
 var getRegions = function () {
@@ -84,15 +83,33 @@ var getCheapestInRegion = function (forRegion) {
 //var getLastWeekMaxPrice
 
 var getUbuntuAMIs = function (regs) {
-    var request = require("request");
+    return new Promise(function(resolve, reject) {
 
-    request({
-        url: "https://cloud-images.ubuntu.com/locator/ec2/releasesTable",
-        json: true
-    }, function (error, response, body) {
-        if (!error && response.statusCode === 200) {
-            console.log(body) // Print the json response
-        }
+        var request = require("request");
+
+        request({
+            url: "https://cloud-images.ubuntu.com/locator/ec2/releasesTable",
+            json: true
+        }, function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+                //console.log(body);
+                body = body.replace(/],\s*]/, "]]"); //ubuntu cloud json bug
+                var importedJSON = JSON.parse(body);
+                var res = importedJSON["aaData"]
+                    .map((a) => {
+                        return {region: a[0], release: a[2], arch: a[3], type: a[4], ami: a[6]}
+                    })
+                    .filter((a) => regs.indexOf(a["region"]) > -1)
+                    .filter((a) => a["release"].search(RWDRequest["ubuntuRelease"]) > -1)
+                    .filter((a) => a["type"] === 'hvm:instance-store');
+                res.forEach((a) => {
+                    a["ami"] = a["ami"].replace(/<[^<]+>/g, "")
+                });
+                resolve(res);
+            } else {
+                reject();
+            }
+        })
     })
 };
 
